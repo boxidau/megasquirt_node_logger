@@ -1,0 +1,11 @@
+{
+  "name": "msmodern",
+  "version": "1.0.0",
+  "description": "Megasquirt serial logger",
+  "main": "index.js",
+  "license": "MIT",
+  "dependencies": {
+    "tsc": "^1.20150623.0",
+    "typescript": "^3.3.3"
+  }
+}
