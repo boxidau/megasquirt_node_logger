@@ -115,7 +115,7 @@ export default class MSDataLogger {
       }
     );
     this.writeDataToLog(outputChannelValues);
-    this.dataCallbacks.map(cb => cb(outputChannelValues));
+    this.dataCallbacks.forEach(cb => cb(outputChannelValues));
   }
 
   private writeDataToLog = (channelData: OutputChannelData): void => {

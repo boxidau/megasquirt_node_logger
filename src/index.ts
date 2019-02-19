@@ -5,6 +5,7 @@ import MSSerial from './msserial';
 import MSDecoder from './msdecoder';
 import MSDataLogger from './msdatalogger';
 import * as invariant from 'invariant';
+import WebsocketStreamer from './datahandlers/websocket';
 
 commander
   .option(
@@ -37,6 +38,9 @@ commander
   .option(
     '-n, --no-log', 'Disable data logging',
   )
+  .option(
+    '-w, --websocket-port <n>', 'Websocket broadcast port, specify to enable',
+  )
   .parse(process.argv);
 
 invariant(
@@ -62,9 +66,9 @@ const datalogger = new MSDataLogger(
   loggerOptions
 );
 
-datalogger.start();
+if (commander.websocketPort != null) {
+  const websocketStreamer = new WebsocketStreamer(commander.websocketPort);
+  datalogger.registerDataCallback(websocketStreamer.broadcastData);
+}
 
-//serial.receiveFrame(Buffer.from('00 52 00 00 10 00 00 00 00 00 00 00 00 00 00 93 93 01 01 03 e8 03b803f604c40000007700650065000003e803e803ba00640000006403e8006400640064008400000000ffe30035000003b900640000006400000000000000526b8170', 'hex'))
-// const test =   Buffer.from('00d5000049000000000000000000009393010103e803ca035d03f30000007600650065000003e803e803cb00640000006403e800640064006400890000000000000035000003ca006400000064000000000000000001f80000007d000003ca000000000000000000000000000000000000000000000000000000000000000000000000000103ff0000000000640000000000000000000000000000000000000000000003ca03ca00000000000000000000035d000000000000000000000000000000000000000000000000000000000000c304040000005d995e6c', 'hex');
-// console.log(test);
-// serial.receiveFrame(test);
+datalogger.start();
