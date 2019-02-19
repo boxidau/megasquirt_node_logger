@@ -4,6 +4,7 @@ import * as InterByteTimeout from '@serialport/parser-inter-byte-timeout';
 import { crc32 } from 'crc';
 import * as invariant from 'invariant';
 import log from '../logger';
+import mockResponses from './mockResponses';
 
 export default class MSSerial {
   serial: SerialPort;
@@ -83,8 +84,8 @@ export default class MSSerial {
         }
         if (this.mock) {
           setTimeout(() => {
-            const test = Buffer.from('00d5000049000000000000000000009393010103e803ca035d03f30000007600650065000003e803e803cb00640000006403e800640064006400890000000000000035000003ca006400000064000000000000000001f80000007d000003ca000000000000000000000000000000000000000000000000000000000000000000000000000103ff0000000000640000000000000000000000000000000000000000000003ca03ca00000000000000000000035d000000000000000000000000000000000000000000000000000000000000c304040000005d995e6c', 'hex');
-            this.receiveFrame(test);
+            const idx = Math.floor(Math.random() * mockResponses.length)
+            this.receiveFrame(Buffer.from(mockResponses[idx], 'hex'));
           }, 10);
         }
       })
