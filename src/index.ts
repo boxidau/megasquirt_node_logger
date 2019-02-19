@@ -19,9 +19,9 @@ commander
   )
   .option(
     '-p, --poll-interval <n>',
-    'milliseconds between data fetch cycles. defaults to 50',
+    'milliseconds between data fetch cycles. defaults to 100',
     v => parseInt(v, 10),
-    50
+    100
   )
   .option(
     '-b, --baud-rate', 'Serial baud rate. defaults to 115200',
@@ -47,8 +47,6 @@ invariant(
   commander.serialPort != null || !commander.mockSerial,
   "You must specify a serial port with -s/--serial-port"
 );
-
-console.log(commander.iniFile)
 
 const config = new MSDecoder(commander.iniFile);
 const serial = new MSSerial(
