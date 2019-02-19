@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import log from '../logger';
 import * as invariant from 'invariant';
 
-export default class MSConfig {
+export default class MSDecoder {
 
   config: {[key: string]: any};
 
@@ -13,7 +13,7 @@ export default class MSConfig {
       throw new Error('Config file does not exist');
     }
 
-    log.verbose('MSConfig', 'Config file %j exists, attempting to parse', configFilePath);
+    log.verbose('MSDecoder', 'Config file %j exists, attempting to parse', configFilePath);
     this.config = ini.parse(fs.readFileSync(configFilePath, 'utf-8'));
     console.log(this.config['Datalog'])
   }

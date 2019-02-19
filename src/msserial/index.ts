@@ -3,7 +3,6 @@ import * as MockBinding from '@serialport/binding-mock';
 import * as InterByteTimeout from '@serialport/parser-inter-byte-timeout';
 import { crc32 } from 'crc';
 import * as invariant from 'invariant';
-import MSConfig from '../msconfig';
 import log from '../logger';
 
 export default class MSSerial {
@@ -27,7 +26,7 @@ export default class MSSerial {
     this.parser.on('data', this.receiveFrame);
   }
 
-  public receiveFrame(frame: Buffer): void {
+  public receiveFrame = (frame: Buffer): void => {
     log.verbose('MSSerial', 'received frame %j', frame.toString('hex'));
     const dataSize = frame.readUInt16BE(0);
     log.verbose('MSSerial', 'frame data size %j bytes', dataSize);

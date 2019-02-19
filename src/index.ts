@@ -2,7 +2,7 @@
 
 import * as commander from 'commander';
 import MSSerial from './msserial';
-import MSConfig from './msconfig';
+import MSDecoder from './msdecoder';
 import MSDataLogger from './msdatalogger';
 import * as invariant from 'invariant';
 
@@ -39,7 +39,7 @@ invariant(
 
 console.log(commander.iniFile)
 
-const config = new MSConfig(commander.iniFile);
+const config = new MSDecoder(commander.iniFile);
 const serial = new MSSerial(
   commander.serialPort, commander.baudRate, commander.mockSerial);
 
