@@ -20,6 +20,7 @@ export default class MSDataLogger {
   outputChannelConfig: {[key: string]: OutputChannelConfig};
   logEntryConfig: Array<LogEntryConfig>;
   logFileStream: fs.WriteStream | null;
+  logFileEpoch: number | null;
 
 
   FIELD_SEPARATOR: string = "\t";
@@ -29,7 +30,7 @@ export default class MSDataLogger {
     this.options = options;
     this.serial = serial;
     this.decoder = decoder;
-    this.outputChannelConfig = decoder.getOutputChannelConfig();
+    this.outputChannelConfig = decoder.getOutputChannelConfigs();
     this.logEntryConfig = decoder.getLogEntryConfig();
   }
 
@@ -59,6 +60,7 @@ export default class MSDataLogger {
     });
     log.info('MSDatalogger', 'Creating log file', filePath);
     this.logFileStream = fs.createWriteStream(filePath);
+    this.logFileEpoch = Date.now();
     // TODO: read this header info from the controller
     const headerDateStr = dateformat(date, 'ddd mmm dd HH:MM:ss Z yyyy')
     this.writeLine('"MS2Extra comms342aM: MS2/Extra 3.4.2 release  20160421 11:50BST(c)KC/JSM/JB   uSM"');
@@ -92,10 +94,14 @@ export default class MSDataLogger {
     this.timer.unref();
     this.logFileStream.end();
     this.logFileStream = null;
+    this.logFileEpoch = null;
   }
 
   private writeDataToLog = (response: Buffer): void => {
     const data = this.logEntryConfig.map(logColumn => {
+      if (logColumn.outputChannelName === 'time') {
+        return logColumn.formatter((Date.now() - this.logFileEpoch) / 1000);
+      }
       const outputChannel = this.outputChannelConfig[logColumn.outputChannelName];
       if (outputChannel == null) {
         log.warn(

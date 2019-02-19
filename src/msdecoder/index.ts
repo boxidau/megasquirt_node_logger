@@ -19,6 +19,25 @@ export interface OutputChannelConfig {
 
 export default class MSDecoder {
 
+  // TODO read this from the ECU
+  engineParams = {
+    reqFuel: 2.5,
+    stoich: 14.7,
+    nCylinders: 4,
+    nSquirts1: 2,
+    nSquirts2: 2,
+    "0": 0,
+    "110": 110,
+  };
+
+  ignoreKeys = [
+    'ochBlockSize',
+    'ochGetCommand',
+    'lambda1', // not logged afr1
+    'lambda2', // not logged afr2
+    ''
+  ];
+
   config: {[key: string]: any};
 
   constructor(configFilePath: string) {
@@ -31,39 +50,59 @@ export default class MSDecoder {
     this.config = ini.parse(fs.readFileSync(configFilePath, 'utf-8'));
   }
 
-  getOutputChannelConfig(): {[key: string]: OutputChannelConfig} {
-    const config = {};
+  getOutputChannelConfigs(): {[key: string]: OutputChannelConfig} {
+    const configs = {};
     Object.keys(this.config['OutputChannels'])
       .map(key => {
-        const channelConfig = this.config['OutputChannels'][key]
-          .split(',')
-          .map(v => v.trim());
-        config[key] = {
-          name: key,
-          extractor: this.getOutputChannelExtractor(key),
-          unit: (channelConfig[3] || "").replace(/\"/g, '')
+        const channelConfig = this.getOutputChannelConfig(key);
+        if (channelConfig != null) {
+          configs[key] = channelConfig;
         }
       });
-    return config;
+    return configs;
   }
 
   getOutputChannelKeys(): Array<string> {
     return Object.keys(this.config['OutputChannels'])
   }
 
-  getOutputChannelExtractor(key: string): (Buffer) => any {
-    const channelConfig = this.config['OutputChannels'][key]
+  getOutputChannelConfig(key: string): OutputChannelConfig | null {
+    const channelConfigStr = this.config['OutputChannels'][key];
+    const outputChannelConfig = {
+      name: key,
+      extractor: (buf: Buffer) => 0, // default extractor just returns 0
+      unit: "" // no unit string
+    }
+
+    if (this.ignoreKeys.indexOf(key) >= 0) {
+      return null;
+    }
+
+    if (key === 'time') {
+      // has special handlingn in the datalogger
+      // just return the default config
+      return outputChannelConfig;
+    }
+
+    if (channelConfigStr == null) {
+      log.error('MSDecoder', 'Requested output channel key not present', key);
+      return outputChannelConfig;
+    }
+
+    const channelConfigFields = channelConfigStr
+      .replace(/\{.*bitStringValue\(.*algorithmUnits.*\}/, 'kPa') // feel free to make this not shit
       .split(',')
       .map(v => v.trim());
-    if (channelConfig[0] === 'scalar' && channelConfig.length === 6) {
-      // first byte is a flag field
-      const offset = parseInt(channelConfig[2], 10) + 1;
-      const unit = channelConfig[3];
-      const multiplier = parseFloat(channelConfig[4]);
-      const scale = parseInt(channelConfig[5], 10);
-      const packing = channelConfig[1];
 
-      return (buf: Buffer): number => {
+    if (channelConfigFields[0] === 'scalar' && channelConfigFields.length === 6) {
+      outputChannelConfig.unit = (channelConfigFields[3] || "").replace(/\"/g, '');
+      // first byte is a flag field
+      const offset = parseInt(channelConfigFields[2], 10) + 1;
+      const multiplier = parseFloat(channelConfigFields[4]);
+      const scale = parseInt(channelConfigFields[5], 10);
+      const packing = channelConfigFields[1];
+
+      outputChannelConfig.extractor = (buf: Buffer): number => {
         let extractedValue = 0;
         switch (packing) {
           case 'S32':
@@ -90,34 +129,53 @@ export default class MSDecoder {
         // who in their right fucking mind would add before multiplying
         return (extractedValue + scale) * multiplier;
       }
+      return outputChannelConfig;
     }
-    if (channelConfig[0] === 'bits' && channelConfig.length === 4) {
-      const packing = channelConfig[1];
-      const offset = parseInt(channelConfig[2], 10) + 1;
-      const bitOffsetRange = channelConfig[3].substr(1,3).split(':');
-      if (
-        bitOffsetRange[0] !== bitOffsetRange[1]
-        || packing !== 'U08'
-      ) {
+
+    if (channelConfigFields[0] === 'bits' && channelConfigFields.length === 4) {
+      const packing = channelConfigFields[1];
+      const offset = parseInt(channelConfigFields[2], 10) + 1;
+      const bitOffsetRange = channelConfigFields[3].substr(1,3).split(':');
+      if (bitOffsetRange[0] !== bitOffsetRange[1] || packing !== 'U08') {
         log.warn(
           'Cannot handle bit ranges or non U08 packing, key: ',
           key
         );
-        return (buf: Buffer) => 0;
+        return outputChannelConfig;
       }
 
       // bit offset from MSB
       const bitOffset = parseInt(bitOffsetRange[0], 10);
-      return (buf: Buffer): number => {
+      outputChannelConfig.extractor = (buf: Buffer): number => {
         const byte = buf.readUInt8(offset);
         return (byte >> (8 - bitOffset)) & 1;
       }
+      return outputChannelConfig;
     }
-    return (buf: Buffer) => {
-      log.warn(
-        'Unknown packing/encoding', key, channelConfig);
-      return 0;
+
+    if (channelConfigFields.length === 2 || channelConfigFields.length === 1) {
+      // this might be an alias field
+      const match = channelConfigFields[0].match(/\{ (\w+) \}/);
+      if (match) {
+        const aliasOf = match[1];
+        if (aliasOf in this.config['OutputChannels']) {
+          return this.getOutputChannelConfig(aliasOf);
+        } else if (aliasOf in this.engineParams) {
+          outputChannelConfig.extractor = (buf: Buffer) => this.engineParams[aliasOf];
+        } else {
+          log.warn('MSDecoder', 'Cannot resolve field alias', aliasOf);
+        }
+        outputChannelConfig.unit = (channelConfigFields[1] || "").replace(/\"/g, '');
+        return outputChannelConfig;
+      }
     }
+    log.warn(
+      'MSDecoder',
+      'Error parsing output channel',
+      key,
+      channelConfigStr
+    );
+    return outputChannelConfig;
   }
 
   getLogEntryConfig(): Array<LogEntryConfig> {
