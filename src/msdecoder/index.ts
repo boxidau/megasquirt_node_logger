@@ -183,7 +183,9 @@ export default class MSDecoder {
       .map(
         entry => {
           const values = entry.split(',').map(v => v.trim().replace(/\"/g, ''));
-          if (values.length !== 4) {
+          // when the length is 5 it means there's a condition attached
+          // let's just assume true for these conditions and log everything
+          if (values.length !== 4 && values.length !== 5) {
             log.error('MSDecoder', "Error parsing Datalog section entry", entry);
             return null;
           }

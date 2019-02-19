@@ -42,7 +42,10 @@ export default class MSDataLogger {
       log.warn('MSDatalogger', 'Logging to file is disabled');
     }
 
-    this.timer = setInterval(this.executeLog, this.options.pollInterval);
+    this.timer = setInterval(
+      async () => await this.executeLog(),
+      this.options.pollInterval
+    );
     this.timer.ref();
     return this.timer;
   }
@@ -116,7 +119,12 @@ export default class MSDataLogger {
     this.writeLine(this.stringArrayToLogLine(data));
   }
 
-  executeLog = (): void => {
-    this.serial.fetchRealtimeData().then(this.writeDataToLog);
+  executeLog = async (): Promise<void> => {
+    try {
+      const rawData = await this.serial.fetchRealtimeData()
+      this.writeDataToLog(rawData);
+    } catch(err) {
+      log.error('MSDatalogger', err);
+    }
   }
 }

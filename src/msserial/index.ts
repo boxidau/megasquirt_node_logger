@@ -21,7 +21,7 @@ export default class MSSerial {
     }
     this.serial = new SerialPort(portName, options);
     this.parser = this.serial.pipe(
-      new InterByteTimeout({interval: 10})
+      new InterByteTimeout({interval: 30})
     );
     this.parser.on('data', this.receiveFrame);
   }
