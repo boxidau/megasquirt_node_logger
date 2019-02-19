@@ -2,6 +2,20 @@ import * as ini from 'ini';
 import * as fs from 'fs';
 import log from '../logger';
 import * as invariant from 'invariant';
+import {sprintf} from 'voca';
+
+export interface LogEntryConfig {
+  outputChannelName: string,
+  fieldName: string,
+  fieldType: 'int'|'float',
+  formatter: (outputChannelValue: number) => string
+}
+
+export interface OutputChannelConfig {
+  name: string,
+  extractor: (Buffer) => number,
+  unit: string,
+}
 
 export default class MSDecoder {
 
@@ -15,16 +29,22 @@ export default class MSDecoder {
 
     log.verbose('MSDecoder', 'Config file %j exists, attempting to parse', configFilePath);
     this.config = ini.parse(fs.readFileSync(configFilePath, 'utf-8'));
-    console.log(this.config['Datalog'])
   }
 
-  getOutputChannelBufferParser(): {[key: string]: (Buffer) => any} {
-    const parser = {};
-    this.getOutputChannelKeys()
+  getOutputChannelConfig(): {[key: string]: OutputChannelConfig} {
+    const config = {};
+    Object.keys(this.config['OutputChannels'])
       .map(key => {
-        parser[key] = this.getOutputChannelExtractor(key)
+        const channelConfig = this.config['OutputChannels'][key]
+          .split(',')
+          .map(v => v.trim());
+        config[key] = {
+          name: key,
+          extractor: this.getOutputChannelExtractor(key),
+          unit: (channelConfig[3] || "").replace(/\"/g, '')
+        }
       });
-    return parser;
+    return config;
   }
 
   getOutputChannelKeys(): Array<string> {
@@ -98,6 +118,27 @@ export default class MSDecoder {
         'Unknown packing/encoding', key, channelConfig);
       return 0;
     }
+  }
+
+  getLogEntryConfig(): Array<LogEntryConfig> {
+    return this.config['Datalog'].entry
+      .map(
+        entry => {
+          const values = entry.split(',').map(v => v.trim().replace(/\"/g, ''));
+          if (values.length !== 4) {
+            log.error('MSDecoder', "Error parsing Datalog section entry", entry);
+            return null;
+          }
+          return {
+            outputChannelName: values[0],
+            fieldName: values[1],
+            fieldType: values[2],
+            formatter: (channelValue: number) => {
+              return sprintf(values[3], channelValue)
+            }
+          }
+        }
+      ).filter(entry => entry !== null);
   }
 
 }
