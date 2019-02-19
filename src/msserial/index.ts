@@ -9,7 +9,8 @@ import mockResponses from './mockResponses';
 export default class MSSerial {
   serial: SerialPort;
   parser: any;
-  responseResolver: (Buffer) => void | null;
+  responseResolve: (Buffer) => void | null;
+  responseReject: (Error) => void | null;
   mock: boolean = false;
 
   constructor(portName: string, baudRate: number = 115200, mock: boolean = false) {
@@ -22,6 +23,7 @@ export default class MSSerial {
     }
     this.serial = new SerialPort(portName, options);
     this.parser = this.serial.pipe(
+      // this isn't perfect but it works for now
       new InterByteTimeout({interval: 30})
     );
     this.parser.on('data', this.receiveFrame);
@@ -32,22 +34,25 @@ export default class MSSerial {
     const dataSize = frame.readUInt16BE(0);
     log.verbose('MSSerial', 'frame data size %j bytes', dataSize);
     // frame starts with length (2 bytes) and ends with CRC32 (4 bytes)
-    invariant(dataSize + 6 === frame.length, 'Invalid data size in response data');
+    if (dataSize + 6 !== frame.length) {
+      this.responseReject(new Error('Invalid data size in response data'));
+    }
 
     const data = frame.slice(2, dataSize + 2);
     const frameCRC = frame.readUInt32BE(frame.length - 4);
     const calculatedCRC = crc32(data);
-    invariant(frameCRC === calculatedCRC, "Invalid checksum");
+    if (frameCRC !== calculatedCRC) {
+      this.responseReject(new Error('Invalid checksum'));
+    }
     log.verbose('MSSerial', 'frame CRC OK');
-    if (this.responseResolver) {
-      this.responseResolver(data);
+    if (this.responseResolve) {
+      this.responseResolve(data);
     } else {
       log.warn(
         'MSSerial',
         'No resolver registered, unexpected data frame from device?'
       );
     }
-    console.log(frame);
   }
 
   public async fetchRealtimeData(): Promise<Buffer> {
@@ -76,7 +81,8 @@ export default class MSSerial {
     const frame = Buffer.concat([sizeBuf, data, crcBuf]);
     log.verbose('MSSerial', 'sending frame %j', frame.toString('hex'));
     return new Promise((resolve, reject) => {
-      this.responseResolver = resolve;
+      this.responseResolve = resolve;
+      this.responseReject = reject;
       this.serial.write(frame, err => {
         if (err != null) {
           log.error('MSSerial', err);

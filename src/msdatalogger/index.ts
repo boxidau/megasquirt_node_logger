@@ -12,6 +12,8 @@ interface LoggerOptions {
   loggingEnabled: boolean,
 }
 
+export interface OutputChannelData {[key: string]: number};
+
 export default class MSDataLogger {
   timer: NodeJS.Timer | null;
   options: LoggerOptions;
@@ -21,7 +23,8 @@ export default class MSDataLogger {
   logEntryConfig: Array<LogEntryConfig>;
   logFileStream: fs.WriteStream | null;
   logFileEpoch: number | null;
-
+  logEntries: number = 0;
+  dataCallbacks: Array<(OutputChannelData) => void> = [];
 
   FIELD_SEPARATOR: string = "\t";
 
@@ -48,6 +51,10 @@ export default class MSDataLogger {
     );
     this.timer.ref();
     return this.timer;
+  }
+
+  public registerDataCallback(callback: (OutputChannelData) => void): void {
+    this.dataCallbacks.push(callback);
   }
 
   private initializeLogFile(): void {
@@ -100,7 +107,18 @@ export default class MSDataLogger {
     this.logFileEpoch = null;
   }
 
-  private writeDataToLog = (response: Buffer): void => {
+  private handleResponse = (response: Buffer): void => {
+    const outputChannelValues = {};
+    Object.values(this.outputChannelConfig).map(
+      channelConfig => {
+        outputChannelValues[channelConfig.name] = channelConfig.extractor(response)
+      }
+    );
+    this.writeDataToLog(outputChannelValues);
+    this.dataCallbacks.map(cb => cb(outputChannelValues));
+  }
+
+  private writeDataToLog = (channelData: OutputChannelData): void => {
     const data = this.logEntryConfig.map(logColumn => {
       if (logColumn.outputChannelName === 'time') {
         return logColumn.formatter((Date.now() - this.logFileEpoch) / 1000);
@@ -114,15 +132,18 @@ export default class MSDataLogger {
         );
         return "";
       }
-      return logColumn.formatter(outputChannel.extractor(response));
+      return logColumn.formatter(channelData[outputChannel.name]);
     });
     this.writeLine(this.stringArrayToLogLine(data));
+    if (++this.logEntries % 1000 === 0) {
+      log.info('MSDatalogger', 'Entries written to log file:', this.logEntries, );
+    }
   }
 
   executeLog = async (): Promise<void> => {
     try {
       const rawData = await this.serial.fetchRealtimeData()
-      this.writeDataToLog(rawData);
+      this.handleResponse(rawData);
     } catch(err) {
       log.error('MSDatalogger', err);
     }
