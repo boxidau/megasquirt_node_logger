@@ -13,6 +13,7 @@ export default class MockDataProducer {
     ['tps', new Sweeper(0, 100, 50)],
     ['rpm', new Sweeper(1000, 6000, 25)],
     ['mat', new Sweeper(15, 40, 5)],
+    ['clt', new Sweeper(80, 90, 2)],
   ]);
 
   constructor(pollInterval: number) {
