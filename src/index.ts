@@ -6,6 +6,7 @@ import MSDecoder from './msdecoder';
 import MSDataLogger from './msdatalogger';
 import * as invariant from 'invariant';
 import WebsocketStreamer from './datahandlers/websocket';
+import MockDataProducer from './mockdataproducer'
 
 commander
   .option(
@@ -41,6 +42,9 @@ commander
   .option(
     '-w, --websocket-port <n>', 'Websocket broadcast port, specify to enable',
   )
+  .option(
+    '-f, --fake-data', 'Emit fake data'
+  )
   .parse(process.argv);
 
 invariant(
@@ -48,21 +52,26 @@ invariant(
   "You must specify a serial port with -s/--serial-port"
 );
 
-const config = new MSDecoder(commander.iniFile);
-const serial = new MSSerial(
-  commander.serialPort, commander.baudRate, commander.mockSerial);
+const decoder = new MSDecoder(commander.iniFile);
+let datalogger = null;
+if (commander.fakeData != null) {
+  datalogger = new MockDataProducer(commander.pollInterval);
+} else {
+  const serial = new MSSerial(
+    commander.serialPort, commander.baudRate, commander.mockSerial);
 
-const loggerOptions = {
-  pollInterval: commander.pollInterval,
-  logDir: commander.logDir,
-  loggingEnabled: commander.log,
+  const loggerOptions = {
+    pollInterval: commander.pollInterval,
+    logDir: commander.logDir,
+    loggingEnabled: commander.log,
+  }
+
+  datalogger = new MSDataLogger(
+    serial,
+    decoder,
+    loggerOptions
+  );
 }
-
-const datalogger = new MSDataLogger(
-  serial,
-  config,
-  loggerOptions
-);
 
 if (commander.websocketPort != null) {
   const websocketStreamer = new WebsocketStreamer(commander.websocketPort);
