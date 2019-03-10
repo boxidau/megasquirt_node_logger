@@ -12,7 +12,7 @@ export interface LogEntryConfig {
 
 export interface OutputChannelConfig {
   name: string,
-  extractor: (Buffer) => number,
+  extractor: (buffer: Buffer) => number,
   unit: string,
 }
 

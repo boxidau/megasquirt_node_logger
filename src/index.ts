@@ -3,7 +3,7 @@
 import * as commander from 'commander';
 import MSSerial from './msserial';
 import MSDecoder from './msdecoder';
-import MSDataLogger from './msdatalogger';
+import MSDataProducer from './msdataproducer';
 import * as invariant from 'invariant';
 import WebsocketStreamer from './datahandlers/websocket';
 import MockDataProducer from './mockdataproducer'
@@ -19,10 +19,10 @@ commander
     './config/mainController.ini'
   )
   .option(
-    '-p, --poll-interval <n>',
-    'milliseconds between data fetch cycles. defaults to 100',
+    '-p, --poll-delay <n>',
+    'milliseconds between data fetch cycles. defaults to 15',
     v => parseInt(v, 10),
-    100
+    15
   )
   .option(
     '-b, --baud-rate', 'Serial baud rate. defaults to 115200',
@@ -53,20 +53,20 @@ invariant(
 );
 
 const decoder = new MSDecoder(commander.iniFile);
-let datalogger = null;
+let dataproducer = null;
 if (commander.fakeData != null) {
-  datalogger = new MockDataProducer(commander.pollInterval);
+  dataproducer = new MockDataProducer(commander.pollDelay);
 } else {
   const serial = new MSSerial(
     commander.serialPort, commander.baudRate, commander.mockSerial);
 
   const loggerOptions = {
-    pollInterval: commander.pollInterval,
+    pollDelay: commander.pollDelay,
     logDir: commander.logDir,
     loggingEnabled: commander.log,
   }
 
-  datalogger = new MSDataLogger(
+  dataproducer = new MSDataProducer(
     serial,
     decoder,
     loggerOptions
@@ -75,7 +75,7 @@ if (commander.fakeData != null) {
 
 if (commander.websocketPort != null) {
   const websocketStreamer = new WebsocketStreamer(commander.websocketPort);
-  datalogger.registerDataCallback(websocketStreamer.broadcastData);
+  dataproducer.registerDataCallback(websocketStreamer.broadcastData);
 }
 
-datalogger.start();
+dataproducer.start();

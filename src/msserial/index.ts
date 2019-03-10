@@ -8,8 +8,9 @@ import mockResponses from './mockResponses';
 export default class MSSerial {
   serial: SerialPort;
   parser: any;
-  responseResolve: (buffer: Buffer) => void | null;
-  responseReject: (error: Error) => void | null;
+  private responseResolve: (buffer: Buffer) => void | null;
+  private responseReject: (error: Error) => void | null;
+  private timeout: NodeJS.Timer | null;
   mock: boolean = false;
 
   constructor(portName: string, baudRate: number = 115200, mock: boolean = false) {
@@ -29,6 +30,11 @@ export default class MSSerial {
   }
 
   public receiveFrame = (frame: Buffer): void => {
+    clearTimeout(this.timeout);
+    if (this.responseReject == null || this.responseResolve == null) {
+      log.warn('MSSerial', 'No handlers registered to recieve frame');
+      return;
+    }
     log.verbose('MSSerial', 'received frame %j', frame.toString('hex'));
     const dataSize = frame.readUInt16BE(0);
     log.verbose('MSSerial', 'frame data size %j bytes', dataSize);
@@ -73,19 +79,23 @@ export default class MSSerial {
     const sizeBuf = Buffer.alloc(2);
     sizeBuf.writeUInt16BE(data.length, 0);
 
-    const crc: number = crc32(data);
     const crcBuf = Buffer.alloc(4);
-    crcBuf.writeUInt32BE(crc, 0);
+    crcBuf.writeUInt32BE(crc32(data), 0);
 
     const frame = Buffer.concat([sizeBuf, data, crcBuf]);
     log.verbose('MSSerial', 'sending frame %j', frame.toString('hex'));
     return new Promise((resolve, reject) => {
       this.responseResolve = resolve;
       this.responseReject = reject;
+      this.timeout = setTimeout(() => {
+        this.responseReject = null;
+        this.responseResolve = null;
+        reject(new Error('Timeout'));
+      }, 150);
       this.serial.write(frame, err => {
         if (err != null) {
           log.error('MSSerial', err);
-          reject();
+          reject(err);
         }
         if (this.mock) {
           setTimeout(() => {

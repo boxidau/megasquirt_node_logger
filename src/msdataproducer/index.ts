@@ -7,59 +7,61 @@ import * as fs from 'fs';
 import * as dateformat from 'dateformat';
 
 interface LoggerOptions {
-  pollInterval: number,
+  pollDelay: number,
   logDir: string,
   loggingEnabled: boolean,
 }
 
 export interface OutputChannelData { [key: string]: number };
 
-export default class MSDataLogger {
-  timer: NodeJS.Timer | null;
-  options: LoggerOptions;
-  serial: MSSerial;
-  decoder: MSDecoder;
-  outputChannelConfig: { [key: string]: OutputChannelConfig };
-  logEntryConfig: Array<LogEntryConfig>;
-  logFileStream: fs.WriteStream | null;
-  logFileEpoch: number | null;
-  logEntries: number = 0;
-  dataCallbacks: Array<(OutputChannelData) => void> = [];
+export default class MSDataProducer {
+  private watchdogTimer: NodeJS.Timer | null;
+  private outputChannelConfig: { [key: string]: OutputChannelConfig };
+  private logEntryConfig: Array<LogEntryConfig>;
+  private logFileStream: fs.WriteStream | null;
+  private logFileEpoch: number | null;
+  private logEntries: number = 0;
+  private dataCallbacks: Array<(data: OutputChannelData) => void> = [];
+  private lastSuccess: number = 0;
+  private scheduledExecTimer: NodeJS.Timer | null;
 
   FIELD_SEPARATOR: string = "\t";
+  WATCHDOG_ACTION_TIME = 500;
 
-  constructor(serial: MSSerial, decoder: MSDecoder, options: LoggerOptions) {
-    log.verbose('MSDatalogger', 'Configuration', options);
-    this.options = options;
-    this.serial = serial;
-    this.decoder = decoder;
-    this.outputChannelConfig = decoder.getOutputChannelConfigs();
-    this.logEntryConfig = decoder.getLogEntryConfig();
+  constructor(
+    private serial: MSSerial,
+    private decoder: MSDecoder, 
+    private options: LoggerOptions
+  ) {
+    log.verbose('MSDataProducer', 'Configuration', options);
+    this.outputChannelConfig = this.decoder.getOutputChannelConfigs();
+    this.logEntryConfig = this.decoder.getLogEntryConfig();
   }
 
   public start(): NodeJS.Timer {
-    log.info('MSDatalogger', 'Starting logger');
+    log.info('MSDataProducer', 'Starting logger');
     if (this.options.loggingEnabled) {
       this.initializeLogFile();
     } else {
-      log.warn('MSDatalogger', 'Logging to file is disabled');
+      log.warn('MSDataProducer', 'Logging to file is disabled');
     }
 
-    this.timer = setInterval(
-      async () => await this.executeLog(),
-      this.options.pollInterval
+    // the watchdog timer just makes sure data is being produced regularly
+    // scheduling of the next polling occurs after each data poll
+    this.watchdogTimer = setInterval(
+      this.executeWatchdog,
+      this.WATCHDOG_ACTION_TIME
     );
-    this.timer.ref();
-    return this.timer;
+    return this.watchdogTimer;
   }
 
-  public registerDataCallback(callback: (OutputChannelData) => void): void {
+  public registerDataCallback(callback: (data: OutputChannelData) => void): void {
     this.dataCallbacks.push(callback);
   }
 
   private initializeLogFile(): void {
     if (!fs.existsSync(this.options.logDir)) {
-      log.info('MSDatalogger', 'Creating log directory', this.options.logDir);
+      log.info('MSDataProducer', 'Creating log directory', this.options.logDir);
       fs.mkdirSync(this.options.logDir, { recursive: false, mode: 0o755 });
     }
     const date = new Date();
@@ -68,7 +70,7 @@ export default class MSDataLogger {
       dir: this.options.logDir,
       base: `${fileDateStr}.msl`
     });
-    log.info('MSDatalogger', 'Creating log file', filePath);
+    log.info('MSDataProducer', 'Creating log file', filePath);
     this.logFileStream = fs.createWriteStream(filePath);
     this.logFileEpoch = Date.now();
     // TODO: read this header info from the controller
@@ -101,7 +103,7 @@ export default class MSDataLogger {
   }
 
   public stop(): void {
-    this.timer.unref();
+    this.watchdogTimer.unref();
     this.logFileStream.end();
     this.logFileStream = null;
     this.logFileEpoch = null;
@@ -126,7 +128,7 @@ export default class MSDataLogger {
       const outputChannel = this.outputChannelConfig[logColumn.outputChannelName];
       if (outputChannel == null) {
         log.warn(
-          'MSDatalogger',
+          'MSDataProducer',
           'Unknown output channel specified in Datalog config',
           logColumn
         );
@@ -136,16 +138,32 @@ export default class MSDataLogger {
     });
     this.writeLine(this.stringArrayToLogLine(data));
     if (++this.logEntries % 1000 === 0) {
-      log.info('MSDatalogger', 'Entries written to log file:', this.logEntries);
+      log.info('MSDataProducer', 'Entries written to log file:', this.logEntries);
     }
   }
 
-  executeLog = async (): Promise<void> => {
+  private scheduleExecute = (): void => {
+    clearTimeout(this.scheduledExecTimer);
+    this.scheduledExecTimer = setTimeout(this.execute, this.options.pollDelay);
+  }
+
+  private executeWatchdog = (): void => {
+    if (Date.now() - this.WATCHDOG_ACTION_TIME > this.lastSuccess) {
+      log.verbose('MSDataProducer', 'Watchdog executing');
+      this.execute();
+    }
+  }
+
+  private execute = async (): Promise<void> => {
     try {
       const rawData = await this.serial.fetchRealtimeData()
       this.handleResponse(rawData);
     } catch (err) {
-      log.error('MSDatalogger', err);
+      log.error('MSDataProducer', err);
+    } finally {
+      this.lastSuccess = Date.now();
+      // schedule next poll
+      this.scheduleExecute();
     }
   }
 }

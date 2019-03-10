@@ -1,5 +1,5 @@
 import * as WebSocket from 'ws';
-import { OutputChannelData } from '../msdatalogger';
+import { OutputChannelData } from '../msdataproducer';
 import log from '../logger';
 
 export default class WebsocketStreamer {
