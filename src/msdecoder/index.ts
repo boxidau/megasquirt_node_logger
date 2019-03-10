@@ -1,13 +1,12 @@
 import * as ini from 'ini';
 import * as fs from 'fs';
 import log from '../logger';
-import * as invariant from 'invariant';
-import {sprintf} from 'voca';
+import { sprintf } from 'voca';
 
 export interface LogEntryConfig {
   outputChannelName: string,
   fieldName: string,
-  fieldType: 'int'|'float',
+  fieldType: 'int' | 'float',
   formatter: (outputChannelValue: number) => string
 }
 
@@ -38,7 +37,7 @@ export default class MSDecoder {
     ''
   ];
 
-  config: {[key: string]: any};
+  config: { [key: string]: any };
 
   constructor(configFilePath: string) {
 
@@ -50,7 +49,7 @@ export default class MSDecoder {
     this.config = ini.parse(fs.readFileSync(configFilePath, 'utf-8'));
   }
 
-  getOutputChannelConfigs(): {[key: string]: OutputChannelConfig} {
+  getOutputChannelConfigs(): { [key: string]: OutputChannelConfig } {
     const configs = {};
     Object.keys(this.config['OutputChannels'])
       .map(key => {
@@ -135,7 +134,7 @@ export default class MSDecoder {
     if (channelConfigFields[0] === 'bits' && channelConfigFields.length === 4) {
       const packing = channelConfigFields[1];
       const offset = parseInt(channelConfigFields[2], 10) + 1;
-      const bitOffsetRange = channelConfigFields[3].substr(1,3).split(':');
+      const bitOffsetRange = channelConfigFields[3].substr(1, 3).split(':');
       if (bitOffsetRange[0] !== bitOffsetRange[1] || packing !== 'U08') {
         log.warn(
           'Cannot handle bit ranges or non U08 packing, key: ',

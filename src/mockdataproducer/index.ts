@@ -1,5 +1,3 @@
-import {LogEntryConfig, OutputChannelConfig} from '../msdecoder';
-import MSDecoder from '../msdecoder';
 import log from '../logger';
 
 export default class MockDataProducer {
@@ -54,7 +52,7 @@ class Sweeper {
   constructor(min: number, max: number, rate: number = 1) {
     this.min = min;
     this.max = max;
-    this.rate = rate/100;
+    this.rate = rate / 100;
     this.currentValue = min;
   }
 

@@ -2,29 +2,28 @@ import * as SerialPort from 'serialport';
 import * as MockBinding from '@serialport/binding-mock';
 import * as InterByteTimeout from '@serialport/parser-inter-byte-timeout';
 import { crc32 } from 'crc';
-import * as invariant from 'invariant';
 import log from '../logger';
 import mockResponses from './mockResponses';
 
 export default class MSSerial {
   serial: SerialPort;
   parser: any;
-  responseResolve: (Buffer) => void | null;
-  responseReject: (Error) => void | null;
+  responseResolve: (buffer: Buffer) => void | null;
+  responseReject: (error: Error) => void | null;
   mock: boolean = false;
 
   constructor(portName: string, baudRate: number = 115200, mock: boolean = false) {
-    const options = {baudRate};
+    const options = { baudRate };
     if (mock) {
       this.mock = true;
       portName = '/dev/ROBOT';
-      MockBinding.createPort(portName, {echo: false, record: false});
+      MockBinding.createPort(portName, { echo: false, record: false });
       options['binding'] = MockBinding;
     }
     this.serial = new SerialPort(portName, options);
     this.parser = this.serial.pipe(
       // this isn't perfect but it works for now
-      new InterByteTimeout({interval: 30})
+      new InterByteTimeout({ interval: 30 })
     );
     this.parser.on('data', this.receiveFrame);
   }

@@ -1,5 +1,5 @@
 import MSSerial from '../msserial';
-import {LogEntryConfig, OutputChannelConfig} from '../msdecoder';
+import { LogEntryConfig, OutputChannelConfig } from '../msdecoder';
 import MSDecoder from '../msdecoder';
 import log from '../logger';
 import * as path from 'path';
@@ -12,14 +12,14 @@ interface LoggerOptions {
   loggingEnabled: boolean,
 }
 
-export interface OutputChannelData {[key: string]: number};
+export interface OutputChannelData { [key: string]: number };
 
 export default class MSDataLogger {
   timer: NodeJS.Timer | null;
   options: LoggerOptions;
   serial: MSSerial;
   decoder: MSDecoder;
-  outputChannelConfig: {[key: string]: OutputChannelConfig};
+  outputChannelConfig: { [key: string]: OutputChannelConfig };
   logEntryConfig: Array<LogEntryConfig>;
   logFileStream: fs.WriteStream | null;
   logFileEpoch: number | null;
@@ -60,7 +60,7 @@ export default class MSDataLogger {
   private initializeLogFile(): void {
     if (!fs.existsSync(this.options.logDir)) {
       log.info('MSDatalogger', 'Creating log directory', this.options.logDir);
-      fs.mkdirSync(this.options.logDir, {recursive: false, mode: 0o755});
+      fs.mkdirSync(this.options.logDir, { recursive: false, mode: 0o755 });
     }
     const date = new Date();
     const fileDateStr = dateformat(date, 'yyyy-mm-dd_HH.MM.ss');
@@ -136,7 +136,7 @@ export default class MSDataLogger {
     });
     this.writeLine(this.stringArrayToLogLine(data));
     if (++this.logEntries % 1000 === 0) {
-      log.info('MSDatalogger', 'Entries written to log file:', this.logEntries, );
+      log.info('MSDatalogger', 'Entries written to log file:', this.logEntries);
     }
   }
 
@@ -144,7 +144,7 @@ export default class MSDataLogger {
     try {
       const rawData = await this.serial.fetchRealtimeData()
       this.handleResponse(rawData);
-    } catch(err) {
+    } catch (err) {
       log.error('MSDatalogger', err);
     }
   }
