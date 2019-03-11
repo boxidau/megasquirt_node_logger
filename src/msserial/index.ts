@@ -28,6 +28,7 @@ export default class MSSerial {
     this.parser.on('data', this.receiveFrame);
     this.serial.on('close', this.autoReconnect);
     this.serial.on('error', this.reset);
+    this.serial.on('open', () => log.info('MSSerial', 'Connected to ' + portName))
     this.serial.open();
   }
 
@@ -143,5 +144,35 @@ export default class MSSerial {
         }
       })
     });
+  }
+
+  static async tryConnect(portName: string): Promise<MSSerial> {
+    return new Promise((resolve, reject) => {
+      const serial = new MSSerial(portName);
+      const attemptLoop = setInterval(() => {
+        serial.fetchRealtimeData().then(_ => {
+          resolve(serial);
+        }).catch(reject)
+      }, 500);
+      setTimeout(() => {
+        clearInterval(attemptLoop)
+        reject()
+      }, 1500);
+    });
+  }
+
+  static async autodetect(): Promise<MSSerial> {
+    const ports = await SerialPort.list();
+    for (const port of ports) {
+      log.info('MSSerial', 'Trying port ' + port.comName);
+      try {
+        const connection = await MSSerial.tryConnect(port.comName);
+        log.info('MSSerial', 'Response from ' + port.comName);
+        return connection;
+      } catch (err) {
+        log.info('MSSerial', 'Port failed ' + port.comName);
+      }
+    }
+    throw new Error('Unable to auto-detect ECU serial port');
   }
 }

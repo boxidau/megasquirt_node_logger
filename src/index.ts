@@ -4,10 +4,10 @@ import * as commander from 'commander';
 import MSSerial from './msserial';
 import MSDecoder from './msdecoder';
 import MSDataProducer from './msdataproducer';
-import * as invariant from 'invariant';
 import WebsocketStreamer from './datahandlers/websocket';
 import MockDataProducer from './mockdataproducer'
 import LogFileWriter from './datahandlers/logfile';
+import log from './logger';
 
 commander
   .option(
@@ -44,29 +44,32 @@ commander
   )
   .parse(process.argv);
 
-invariant(
-  commander.serialPort != null || !commander.mockSerial,
-  "You must specify a serial port with -s/--serial-port"
-);
+const main = async function() {
+  const decoder = new MSDecoder(commander.iniFile);
+  let dataproducer = null;
+  if (commander.fakeData != null) {
+    dataproducer = new MockDataProducer();
+  } else {
+    let serial: MSSerial;
+    if (!commander.mockSerial && !commander.serialPort) {
+      log.info('CLI', 'No serial port specified, attempting to find one');
+      serial = await MSSerial.autodetect()
+    } else {
+      serial = new MSSerial(commander.serialPort, commander.baudRate, commander.mockSerial);
+    }
+    dataproducer = new MSDataProducer(serial, decoder);
+  }
 
-const decoder = new MSDecoder(commander.iniFile);
-let dataproducer = null;
-if (commander.fakeData != null) {
-  dataproducer = new MockDataProducer();
-} else {
-  const serial = new MSSerial(
-    commander.serialPort, commander.baudRate, commander.mockSerial);
-  dataproducer = new MSDataProducer(serial, decoder);
-}
+  if (commander.log) {
+    const logger = new LogFileWriter(decoder, commander.logDir);
+    dataproducer.registerDataCallback(logger.writeDataToLog);
+  }
 
-if (commander.log) {
-  const logger = new LogFileWriter(decoder, commander.logDir);
-  dataproducer.registerDataCallback(logger.writeDataToLog);
-}
+  if (commander.websocketPort != null) {
+    const websocketStreamer = new WebsocketStreamer(commander.websocketPort);
+    dataproducer.registerDataCallback(websocketStreamer.broadcastData);
+  }
+  dataproducer.start();
+};
 
-if (commander.websocketPort != null) {
-  const websocketStreamer = new WebsocketStreamer(commander.websocketPort);
-  dataproducer.registerDataCallback(websocketStreamer.broadcastData);
-}
-
-dataproducer.start();
+main();
