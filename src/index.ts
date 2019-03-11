@@ -72,4 +72,6 @@ const main = async function() {
   dataproducer.start();
 };
 
-main();
+main().catch(err => {
+  log.error('CLI', 'An error occured in main()', err);
+});

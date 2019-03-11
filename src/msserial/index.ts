@@ -149,15 +149,14 @@ export default class MSSerial {
   static async tryConnect(portName: string): Promise<MSSerial> {
     return new Promise((resolve, reject) => {
       const serial = new MSSerial(portName);
-      const attemptLoop = setInterval(() => {
+      setTimeout(() => {
         serial.fetchRealtimeData().then(_ => {
           resolve(serial);
-        }).catch(reject)
+        }).catch(() => {
+          serial.serial.binding.close();
+          reject();
+        })
       }, 500);
-      setTimeout(() => {
-        clearInterval(attemptLoop)
-        reject()
-      }, 1500);
     });
   }
 
