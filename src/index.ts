@@ -7,6 +7,7 @@ import MSDataProducer from './msdataproducer';
 import * as invariant from 'invariant';
 import WebsocketStreamer from './datahandlers/websocket';
 import MockDataProducer from './mockdataproducer'
+import LogFileWriter from './datahandlers/logfile';
 
 commander
   .option(
@@ -17,12 +18,6 @@ commander
     '-i, --ini-file <file>',
     'INI file from MegaTune project',
     './config/mainController.ini'
-  )
-  .option(
-    '-p, --poll-delay <n>',
-    'milliseconds between data fetch cycles. defaults to 15',
-    v => parseInt(v, 10),
-    15
   )
   .option(
     '-b, --baud-rate', 'Serial baud rate. defaults to 115200',
@@ -40,7 +35,9 @@ commander
     '-n, --no-log', 'Disable data logging',
   )
   .option(
-    '-w, --websocket-port <n>', 'Websocket broadcast port, specify to enable',
+    '-w, --websocket-port <n>', 'Websocket broadcast port, specify to enable. defaults to 8088',
+    v => parseInt(v, 10),
+    8088
   )
   .option(
     '-f, --fake-data', 'Emit fake data'
@@ -55,22 +52,16 @@ invariant(
 const decoder = new MSDecoder(commander.iniFile);
 let dataproducer = null;
 if (commander.fakeData != null) {
-  dataproducer = new MockDataProducer(commander.pollDelay);
+  dataproducer = new MockDataProducer();
 } else {
   const serial = new MSSerial(
     commander.serialPort, commander.baudRate, commander.mockSerial);
+  dataproducer = new MSDataProducer(serial, decoder);
+}
 
-  const loggerOptions = {
-    pollDelay: commander.pollDelay,
-    logDir: commander.logDir,
-    loggingEnabled: commander.log,
-  }
-
-  dataproducer = new MSDataProducer(
-    serial,
-    decoder,
-    loggerOptions
-  );
+if (commander.log) {
+  const logger = new LogFileWriter(decoder, commander.logDir);
+  dataproducer.registerDataCallback(logger.writeDataToLog);
 }
 
 if (commander.websocketPort != null) {

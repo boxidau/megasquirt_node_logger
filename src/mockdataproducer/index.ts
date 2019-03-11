@@ -1,12 +1,12 @@
 import log from '../logger';
+import { OutputChannelData } from '../msdataproducer';
 
 export default class MockDataProducer {
   timer: NodeJS.Timer | null;
-  dataCallbacks: Array<(OutputChannelData) => void> = [];
-  pollInterval: number;
+  dataCallbacks: Array<(data: OutputChannelData) => void> = [];
 
   fields: Map<string, Sweeper> = new Map([
-    ['afr', new Sweeper(10.1, 18.5, 5)],
+    ['afr1', new Sweeper(10.1, 18.5, 5)],
     ['map', new Sweeper(25, 200, 10)],
     ['tps', new Sweeper(0, 100, 50)],
     ['rpm', new Sweeper(1000, 6000, 25)],
@@ -14,18 +14,14 @@ export default class MockDataProducer {
     ['clt', new Sweeper(80, 90, 2)],
   ]);
 
-  constructor(pollInterval: number) {
-    log.warn('MockDataProducer', 'Producing mock data');
-    this.pollInterval = pollInterval;
-  }
-
   public start(): NodeJS.Timer {
-    this.timer = setInterval(this.execute, this.pollInterval);
+    log.warn('MockDataProducer', 'Producing mock data');
+    this.timer = setInterval(this.execute, 60);
     this.timer.ref();
     return this.timer;
   }
 
-  public registerDataCallback(callback: (OutputChannelData) => void): void {
+  public registerDataCallback(callback: (data: OutputChannelData) => void): void {
     this.dataCallbacks.push(callback);
   }
 
