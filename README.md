@@ -30,7 +30,7 @@ If you don't have yarn you can use npm I guess
 
 ## Usage
 - Basic: `yarn start -s <serial_port>`
-- With websocket server on port 8088: `yarn start -s <serial_port> -w 8088`
+- With websocket server on port 8088: `yarn start -s <serial_port>`
 
 ```
 yarn start --help
@@ -40,12 +40,12 @@ Usage: index [options]
 Options:
   -s, --serial-port <file>   Serial port Megasquirt is connected to
   -i, --ini-file <file>      INI file from MegaTune project (default: "./config/mainController.ini")
-  -p, --poll-interval <n>    milliseconds between data fetch cycles. defaults to 100 (default: 100)
   -b, --baud-rate            Serial baud rate. defaults to 115200
   -m, --mock-serial          Enables mock serial mode
   -l, --log-dir <directory>  Directory in which to create log files. defaults to ./dataLogs (default: "./dataLogs")
   -n, --no-log               Disable data logging
-  -w, --websocket-port <n>   Websocket broadcast port, specify to enable
+  -w, --websocket-port <n>   Websocket broadcast port. defaults to 8088 (default: 8088)
+  -f, --fake-data            Emit fake data
   -h, --help                 output usage information
 
 ```

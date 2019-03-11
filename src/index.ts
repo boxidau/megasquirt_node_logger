@@ -35,7 +35,7 @@ commander
     '-n, --no-log', 'Disable data logging',
   )
   .option(
-    '-w, --websocket-port <n>', 'Websocket broadcast port, specify to enable. defaults to 8088',
+    '-w, --websocket-port <n>', 'Websocket broadcast port. defaults to 8088',
     v => parseInt(v, 10),
     8088
   )
