@@ -6,17 +6,19 @@ import log from '../logger';
 import mockResponses from './mockResponses';
 
 export default class MSSerial {
-  serial: SerialPort;
-  parser: any;
+  private serial: SerialPort;
+  private parser: FrameParser;
   private responseResolve: (buffer: Buffer) => void | null;
   private responseReject: (error: Error) => void | null;
   private timeout: NodeJS.Timer | null;
-  mock: boolean = false;
 
-  constructor(portName: string, baudRate: number = 115200, mock: boolean = false) {
-    const options = { baudRate };
-    if (mock) {
-      this.mock = true;
+  constructor(
+    portName: string,
+    baudRate: number = 115200,
+    private mock: boolean = false
+  ) {
+    const options = { baudRate, autoOpen: false };
+    if (this.mock) {
       portName = '/dev/ROBOT';
       MockBinding.createPort(portName, { echo: false, record: false });
       options['binding'] = MockBinding;
@@ -24,9 +26,43 @@ export default class MSSerial {
     this.serial = new SerialPort(portName, options);
     this.parser = this.serial.pipe(new FrameParser());
     this.parser.on('data', this.receiveFrame);
+    this.serial.on('close', this.autoReconnect);
+    this.serial.on('error', this.reset);
+    this.serial.open();
   }
 
-  public receiveFrame = (frame: Buffer): void => {
+  private autoReconnect = () => {
+    log.warn('MSSerial', 'Lost serial connection - attempting to reconnect');
+    const timerID = setInterval(() => {
+      if (!this.ready()) {
+        this.serial.open(err => {
+          if (err != null) {
+            log.error('MSSerial', 'Error opening serial port: ' + err.message);
+          } else {
+            log.info('MSSerial', 'Connection re-established');
+            clearInterval(timerID);
+          }
+        });
+      }
+    }, 500);
+  }
+
+  private reset = (): void => {
+    if (this.responseReject != null) {
+      this.responseReject(new Error('Serial port reset'));
+    }
+    if (this.timeout != null) {
+      clearTimeout(this.timeout);
+      this.timeout = null;
+    }
+    this.parser.reset();
+  }
+
+  public ready = (): boolean => {
+    return this.serial.isOpen && this.serial.writable;
+  }
+
+  private receiveFrame = (frame: Buffer): void => {
     clearTimeout(this.timeout);
     if (this.responseReject == null || this.responseResolve == null) {
       log.warn('MSSerial', 'No handlers registered to recieve frame');
@@ -73,6 +109,10 @@ export default class MSSerial {
   }
 
   protected async send(data: Buffer): Promise<Buffer> {
+    if (!this.ready()) {
+      return Promise.reject('Serial connection not ready');
+    }
+
     const sizeBuf = Buffer.alloc(2);
     sizeBuf.writeUInt16BE(data.length, 0);
 
@@ -87,7 +127,8 @@ export default class MSSerial {
       this.timeout = setTimeout(() => {
         this.responseReject = null;
         this.responseResolve = null;
-        reject(new Error('Timeout'));
+        this.parser.reset();
+        reject('No response from ECU');
       }, 150);
       this.serial.write(frame, err => {
         if (err != null) {

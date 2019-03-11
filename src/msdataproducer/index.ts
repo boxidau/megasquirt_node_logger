@@ -9,7 +9,8 @@ export default class MSDataProducer {
   private watchdogTimer: NodeJS.Timer | null;
   private outputChannelConfig: { [key: string]: OutputChannelConfig };
   private dataCallbacks: Array<(data: OutputChannelData) => void> = [];
-  private lastSuccess: number = 0;
+  private lastExecute: number = 0;
+  private executor: NodeJS.Timer | null;
 
   WATCHDOG_ACTION_TIME = 500;
 
@@ -20,7 +21,8 @@ export default class MSDataProducer {
     this.outputChannelConfig = this.decoder.getOutputChannelConfigs();
   }
 
-  public start(): NodeJS.Timer {
+  public start = (): NodeJS.Timer => {
+    this.execute();
     // the watchdog timer just makes sure data is being produced regularly
     // scheduling of the next polling occurs after each data poll
     this.watchdogTimer = setInterval(
@@ -35,7 +37,8 @@ export default class MSDataProducer {
   }
 
   public stop(): void {
-    this.watchdogTimer.unref();
+    clearInterval(this.watchdogTimer);
+    clearTimeout(this.executor);
   }
 
   private handleResponse = (response: Buffer): void => {
@@ -49,19 +52,22 @@ export default class MSDataProducer {
   }
 
   private executeWatchdog = (): void => {
-    if (Date.now() - this.WATCHDOG_ACTION_TIME > this.lastSuccess) {
-      log.verbose('MSDataProducer', 'Watchdog executing');
+    if (this.lastExecute < Date.now() - this.WATCHDOG_ACTION_TIME) {
+      log.warn('MSDataProducer', 'No data for some time, watchdog triggering execution');
       this.execute();
     }
   }
 
   private execute = async (): Promise<void> => {
     try {
+      if (!this.serial.ready()) {
+        return;
+      }
       const rawData = await this.serial.fetchRealtimeData()
       this.handleResponse(rawData);
       // schedule next poll
-      setTimeout(this.execute, 15);
-      this.lastSuccess = Date.now();
+      this.executor = setTimeout(this.execute, 15);
+      this.lastExecute = Date.now();
     } catch (err) {
       log.error('MSDataProducer', err);
     }
