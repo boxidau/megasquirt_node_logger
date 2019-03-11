@@ -1,6 +1,6 @@
 import * as SerialPort from 'serialport';
 import * as MockBinding from '@serialport/binding-mock';
-import * as InterByteTimeout from '@serialport/parser-inter-byte-timeout';
+import FrameParser from './frameParser';
 import { crc32 } from 'crc';
 import log from '../logger';
 import mockResponses from './mockResponses';
@@ -22,10 +22,7 @@ export default class MSSerial {
       options['binding'] = MockBinding;
     }
     this.serial = new SerialPort(portName, options);
-    this.parser = this.serial.pipe(
-      // this isn't perfect but it works for now
-      new InterByteTimeout({ interval: 30 })
-    );
+    this.parser = this.serial.pipe(new FrameParser());
     this.parser.on('data', this.receiveFrame);
   }
 

@@ -59,12 +59,11 @@ export default class MSDataProducer {
     try {
       const rawData = await this.serial.fetchRealtimeData()
       this.handleResponse(rawData);
+      // schedule next poll
+      setTimeout(this.execute, 15);
+      this.lastSuccess = Date.now();
     } catch (err) {
       log.error('MSDataProducer', err);
-    } finally {
-      this.lastSuccess = Date.now();
-      // schedule next poll
-      setImmediate(this.execute);
     }
   }
 }
