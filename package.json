@@ -22,7 +22,7 @@
     "tsc": "^1.20150623.0",
     "typescript": "^3.3.3",
     "voca": "^1.4.0",
-    "ws": "^6.1.4"
+    "ws": "^7.4.6"
   },
   "scripts": {
     "build": "./node_modules/.bin/tsc",
